@@ -10,12 +10,107 @@ repository and stored in the shared data lake for processing.
 
 ```
 td2/
-├── fetch_div2hub.py          # Primary refresh script (weapons + gear + attributes)
-├── fetch_weapons_div2hub.py  # Legacy weapons-only script (kept for reference)
+├── fetch_div2hub.py                # Primary refresh script (weapons + gear + attributes)
+├── fetch_weapons_div2hub.py        # Legacy weapons-only script (kept for reference)
+├── loader.py                       # Loads Bronze CSVs into typed Python objects
+├── models.py                       # Weapon, BrandSet, GearSet, Gear dataclasses + DPS
+├── compare_weapons_local.py        # Ranks all weapons in a class by DPS metrics
+├── compare_weapons_local_ar.py     # Legacy AR-only script (superseded by above)
+├── optimize_brands_local_weapons.py # Brand + gear set optimizer for a weapon loadout
+├── generate_weapon_dashboard.py    # Generates the self-contained HTML dashboard
+├── dashboard_weapons.html          # Interactive weapon dashboard (open in any browser)
+├── IDEAS.md                        # Planned and in-progress analyses
 └── README.md
 ```
 
-**Data lake output** — `data-lake/01_Bronze/division_2/`
+**Bronze layer** — `data-lake/01_Bronze/division_2/`  
+**Silver layer** — `data-lake/02_Silver/division_2/`
+
+---
+
+## Analyses
+
+### 1 — Weapon Comparison (`compare_weapons_local.py`)
+
+Ranks all weapons in a class by three DPS metrics:
+
+| Metric | Formula |
+|--------|---------|
+| Raw DPS | `base_damage × (base_rpm / 60)` |
+| Sustained DPS | `(base_damage × mag_size) / (mag_duration + reload_time)` |
+| Headshot DPS | `sustained_dps × (1 + hsd / 100)` |
+
+Exotic placeholder rows (no base stats) are excluded. Talents are excluded from scoring — they are re-rolled via tinkering and should be chosen separately.
+
+```bash
+# Usage
+C:/Users/peter.rigali/Desktop/acn_repo/.venv/Scripts/python.exe td2/compare_weapons_local.py <weapon_class> [sort_by]
+
+# weapon_class: assault_rifles | smgs | lmgs | rifles | mmrs | shotguns | pistols
+# sort_by:      raw_dps | sustained_dps | headshot_dps  (default: headshot_dps)
+
+# Examples
+python td2/compare_weapons_local.py rifles
+python td2/compare_weapons_local.py assault_rifles headshot_dps
+```
+
+Output saved to `data-lake/02_Silver/division_2/{YYYYMMDD}_local_weapons_{class}_ranked.csv`.
+
+---
+
+### 2 — Brand & Gear Set Optimizer (`optimize_brands_local_weapons.py`)
+
+Given one or two weapon types, finds the best combination of brand sets and gear sets
+across 6 gear slots to maximize weapon-relevant stat bonuses.
+
+**Scoring priority** (configurable per weapon type):
+1. Weapon damage (flat — benefits both weapons)
+2. Headshot damage (strong for MMR / headshot builds)
+3. Weapon-type-specific damage (e.g. `marksman-rifle-damage`, `shotgun-damage`)
+4. Critical hit chance / damage (universal offensive)
+
+**Slot-fill patterns supported:**
+
+| Pattern | Description |
+|---------|-------------|
+| `3-3` | Two brands at 3pc each |
+| `3-2-1` | Three brands at 3/2/1pc |
+| `2-2-2` | Three brands at 2pc each |
+| `2-2-1-1` | Four brands with optimal 2/1 assignment |
+| `GS3+3` | One gear set at 3pc + one brand at 3pc |
+| `GS3+2+1` | One gear set at 3pc + two brands at 2/1pc |
+| `GS2+2+2` | One gear set at 2pc + two brands at 2pc each |
+| `GS2+3+1` | One gear set at 2pc + one brand at 3pc + one at 1pc |
+
+Gear sets are scored up to 3pc only — 4pc bonuses involve triggered special mechanics
+that cannot be quantified numerically.
+
+```bash
+# Edit weapon_types list in __main__ block, then run:
+C:/Users/peter.rigali/Desktop/acn_repo/.venv/Scripts/python.exe td2/optimize_brands_local_weapons.py
+```
+
+Output saved to `data-lake/02_Silver/division_2/{YYYYMMDD}_local_brands_{types}_optimized.csv`.
+
+---
+
+### 3 — Weapon Dashboard (`dashboard_weapons.html`)
+
+Self-contained HTML file — open directly in any browser, no server required.
+
+Features:
+- **Class selector**: All, Assault Rifles, SMGs, Rifles, Shotguns, Snipers (MMR), LMGs
+- **Multi-class view**: select multiple classes simultaneously; a Class column appears automatically
+- **Rarity filter**: Normal / Named / Exotic toggles
+- **Sort**: click any column header (HSD DPS, Sus DPS, Raw DPS, Damage, RPM, …)
+- **Stat cards**: top weapon, peak HSD DPS, weapon count for the current selection
+- **Bar chart**: inline HSD DPS bar scaled to the current selection's maximum
+
+Regenerate after a data refresh:
+
+```bash
+C:/Users/peter.rigali/Desktop/acn_repo/.venv/Scripts/python.exe td2/generate_weapon_dashboard.py
+```
 
 ---
 
@@ -48,7 +143,7 @@ Files follow the repo's universal naming convention:
 | `{date}_ext_weapons_shotguns.csv` | — | Shotgun base stats |
 | `{date}_ext_weapons_pistols.csv` | — | Pistol base stats |
 | `{date}_ext_weapons_talents.csv` | — | Weapon talent descriptions |
-| `{date}_ext_weapons_mods.csv` | ~240 | All weapon attachments (optics, magazine, muzzle, underbarrel) with compatibility and stat bonuses |
+| `{date}_ext_weapons_mods.csv` | ~240 | All weapon attachments with compatibility and stat bonuses |
 | `{date}_ext_gear_masks.csv` | — | Mask items (brand, gear set, named, exotic) |
 | `{date}_ext_gear_backpacks.csv` | — | Backpack items |
 | `{date}_ext_gear_chests.csv` | — | Chest items |
@@ -78,7 +173,7 @@ All slot columns use a shared three-value pattern:
 
 ### Weapons
 
-Each weapon row (across all seven weapon-type files) links to three reference tables:
+Each weapon row links to three reference tables:
 
 | Column(s) | Reference table | Join |
 |---|---|---|
@@ -88,7 +183,7 @@ Each weapon row (across all seven weapon-type files) links to three reference ta
 
 ### Gear
 
-Each gear row (across the six slot files) links to five reference tables:
+Each gear row links to five reference tables:
 
 | Column(s) | Reference table | Join |
 |---|---|---|
@@ -132,5 +227,17 @@ C:/Users/peter.rigali/Desktop/acn_repo/.venv/Scripts/python.exe td2/fetch_div2hu
 
 Fetches all 20 files, versions any conflicts, and writes a log to
 `data-lake/00_Logs/division_2/fetch_div2hub_{YYYYMMDD}.log`.
+
+After refreshing Bronze data, re-run the weapon comparisons and regenerate the dashboard:
+
+```bash
+# Re-rank all weapon classes
+for cls in assault_rifles smgs rifles shotguns mmrs lmgs pistols; do
+    python td2/compare_weapons_local.py $cls
+done
+
+# Regenerate dashboard
+python td2/generate_weapon_dashboard.py
+```
 
 Full workflow details: [`agent/workflows/refresh-td2-data.md`](../agent/workflows/refresh-td2-data.md)
