@@ -29,7 +29,7 @@ SILVER_DIR = os.path.normpath(
 )
 OUT_PATH = os.path.join(SCRIPT_DIR, "dashboard_weapons.html")
 
-CLASSES = ["assault_rifles", "smgs", "rifles", "shotguns", "mmrs", "lmgs"]
+CLASSES = ["assault_rifles", "smgs", "rifles", "shotguns", "mmrs", "lmgs", "pistols"]
 CLASS_LABELS = {
     "assault_rifles": "Assault Rifles",
     "smgs":           "SMGs",
@@ -37,11 +37,14 @@ CLASS_LABELS = {
     "shotguns":       "Shotguns",
     "mmrs":           "Snipers (MMR)",
     "lmgs":           "LMGs",
+    "pistols":        "Pistols",
 }
 
 LOADOUT_LABELS = {
-    "rifles+shotguns": "Rifles + Shotguns",
-    "mmrs+shotguns":   "MMRs + Shotguns",
+    "assault_rifles+smgs": "Assault Rifles + SMGs",
+    "rifles+smgs":         "Rifles + SMGs",
+    "rifles+shotguns":     "Rifles + Shotguns",
+    "mmrs+shotguns":       "MMRs + Shotguns",
 }
 
 PATTERN_ORDER = ["3-3", "3-2-1", "2-2-2", "2-2-1-1", "GS2+2+2", "GS2+3+1", "GS3+3", "GS3+2+1"]
@@ -496,10 +499,12 @@ def main() -> None:
         for wc, label in CLASS_LABELS.items()
     )
 
-    first_loadout = list(g_data.keys())[0] if g_data else ""
+    ordered_loadouts = [k for k in LOADOUT_LABELS if k in g_data]
+    ordered_loadouts += [k for k in g_data if k not in LOADOUT_LABELS]
+    first_loadout = ordered_loadouts[0] if ordered_loadouts else ""
     loadout_buttons = " ".join(
         f'<button id="load-{lk}" class="{"act" if lk == first_loadout else ""}" onclick="setLoadout(\'{lk}\')">{LOADOUT_LABELS.get(lk, lk)}</button>'
-        for lk in g_data.keys()
+        for lk in ordered_loadouts
     )
 
     all_patterns = []
