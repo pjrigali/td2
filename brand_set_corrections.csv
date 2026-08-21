@@ -1,0 +1,2 @@
+name,default_core_stat_id,1pc_bonus,2pc_bonus,3pc_bonus,verified_by,note
+Legatus S.p.A,weapon-damage,stat:swap-speed:30%,stat:optimal-range:70%,stat:weapon-damage:15%,in-game,div2hub has wrong stats (magazine-size/smg-damage/optimal-range)

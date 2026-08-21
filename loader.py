@@ -29,6 +29,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BRONZE_DIR = os.path.normpath(
     os.path.join(SCRIPT_DIR, "..", "data-lake", "01_Bronze", "division_2")
 )
+CORRECTIONS_PATH = os.path.join(SCRIPT_DIR, "brand_set_corrections.csv")
 
 # Singular slot name → plural used in the Bronze filename
 _GEAR_SLOT_FILE = {
@@ -200,19 +201,56 @@ def load_gear_talents() -> list:
     ]
 
 
-def load_brand_sets() -> list:
-    """Load all brand sets with their 1/2/3-piece bonuses."""
+def _load_brand_corrections() -> dict[str, dict]:
+    """Return a name-keyed dict of correction rows from brand_set_corrections.csv.
+
+    Returns an empty dict if the corrections file does not exist.
+    Each correction row overrides the matching brand's fields entirely.
+    """
+    if not os.path.exists(CORRECTIONS_PATH):
+        return {}
+    with open(CORRECTIONS_PATH, encoding="utf-8", newline="") as f:
+        return {row["name"]: row for row in csv.DictReader(f)}
+
+
+def load_brand_sets(verbose: bool = False) -> list:
+    """Load all brand sets with their 1/2/3-piece bonuses.
+
+    Applies local corrections from brand_set_corrections.csv when present,
+    overriding fields sourced from the upstream Bronze layer for verified brands.
+    Set verbose=True to print a summary of applied corrections.
+    """
     rows = _read("ext_gear_brand_sets")
-    return [
-        BrandSet(
-            name=row["name"],
-            default_core_stat_id=row["default_core_stat_id"],
-            bonus_1pc=row["1pc_bonus"],
-            bonus_2pc=row["2pc_bonus"],
-            bonus_3pc=row["3pc_bonus"],
-        )
-        for row in rows
-    ]
+    corrections = _load_brand_corrections()
+
+    brands = []
+    for row in rows:
+        corr = corrections.get(row["name"])
+        if corr:
+            if verbose:
+                print(f"  [correction] {row['name']}: {corr.get('note', '')}")
+            brands.append(BrandSet(
+                name=row["name"],
+                default_core_stat_id=corr.get("default_core_stat_id") or row["default_core_stat_id"],
+                bonus_1pc=corr.get("1pc_bonus") or row["1pc_bonus"],
+                bonus_2pc=corr.get("2pc_bonus") or row["2pc_bonus"],
+                bonus_3pc=corr.get("3pc_bonus") or row["3pc_bonus"],
+            ))
+        else:
+            brands.append(BrandSet(
+                name=row["name"],
+                default_core_stat_id=row["default_core_stat_id"],
+                bonus_1pc=row["1pc_bonus"],
+                bonus_2pc=row["2pc_bonus"],
+                bonus_3pc=row["3pc_bonus"],
+            ))
+
+    if corrections and not verbose:
+        applied = [n for n in corrections if any(b.name == n for b in brands)]
+        if applied:
+            print(f"  [brand corrections applied: {', '.join(applied)}]")
+
+    return brands
 
 
 def load_gear_sets() -> list:

@@ -88,9 +88,19 @@ def load_class(weapon_class: str) -> list[dict]:
 
 
 def load_optimizer_data() -> dict[str, list[dict]]:
+    """Load the most recent optimizer CSV per loadout combination."""
+    # Group files by loadout key (derived from filename), keep only the latest per key
+    all_paths = glob.glob(os.path.join(SILVER_DIR, "*_local_brands_*_optimized.csv"))
+    latest_per_loadout: dict[str, str] = {}
+    for path in sorted(all_paths, reverse=True):
+        base = os.path.basename(path)
+        # strip date prefix and suffix to get the loadout key: "assault_rifles_smgs"
+        key = base.split("_local_brands_", 1)[-1].replace("_optimized.csv", "")
+        if key not in latest_per_loadout:
+            latest_per_loadout[key] = path
+
     result: dict[str, list[dict]] = {}
-    paths = glob.glob(os.path.join(SILVER_DIR, "*_local_brands_*_optimized.csv"))
-    for path in sorted(paths, reverse=True):
+    for path in latest_per_loadout.values():
         with open(path, encoding="utf-8", newline="") as f:
             rows = list(csv.DictReader(f))
         for row in rows:
